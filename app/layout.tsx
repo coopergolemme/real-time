@@ -1,18 +1,18 @@
-import type React from "react"
-import "./globals.css"
-import { Inter } from "next/font/google"
-import { getServerSession } from "next-auth/next"
-import { authOptions } from "./api/auth/[...nextauth]/route"
-import Provider from "./components/Provider"
+import type React from "react";
+import "./globals.css";
+import { Inter } from "next/font/google";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "./api/auth/[...nextauth]/route";
+import Provider from "./components/Provider";
 
-const inter = Inter({ subsets: ["latin"] })
+const inter = Inter({ subsets: ["latin"] });
 
 export default async function RootLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
-  const session = await getServerSession(authOptions)
+  const session = await getServerSession(authOptions);
 
   return (
     <html lang="en">
@@ -20,13 +20,11 @@ export default async function RootLayout({
         <Provider session={session}>{children}</Provider>
       </body>
     </html>
-  )
+  );
 }
 
-
-
-import './globals.css'
+import "./globals.css";
 
 export const metadata = {
-      generator: 'v0.dev'
-    };
+  generator: "v0.dev",
+};

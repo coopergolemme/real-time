@@ -1,139 +1,196 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useState, useEffect } from "react"
-import { useSession } from "next-auth/react"
-import Pusher from "pusher-js"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import UserList from "./UserList"
-import GroupList from "./GroupList"
+import { useState, useEffect, useCallback } from "react";
+import { useSession } from "next-auth/react";
+import Pusher from "pusher-js";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import UserList from "./UserList";
+import ActiveUser from "./ActiveUser";
+
+interface Message {
+  id: string;
+  content: string;
+  sender: {
+    name: string;
+    email: string;
+  };
+  createdAt: string;
+}
 
 export default function ChatInterface() {
-  const { data: session } = useSession()
-  const [messages, setMessages] = useState([])
-  const [input, setInput] = useState("")
-  const [currentChat, setCurrentChat] = useState(null)
-  const [isTyping, setIsTyping] = useState(false)
+  const { data: session } = useSession();
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState("");
+  const [currentChat, setCurrentChat] = useState<{
+    id: string;
+    type: "user" | "group";
+  } | null>(null);
+  const [pusherClient, setPusherClient] = useState<Pusher | null>(null);
+  // const [messageError, setMessageError] = useState(false);
 
+  // Happens whenever the session changes
   useEffect(() => {
-    if (!session?.user?.email) return
+    if (!session?.user?.email) return;
 
     const pusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY!, {
       cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
-    })
+      authEndpoint: "/api/pusher/auth",
+    });
 
-    const channel = pusher.subscribe(`presence-user-${session.user.email}`)
-    channel.bind("new-message", (data: { message: string; sender: string }) => {
-      setMessages((prevMessages) => [...prevMessages, data])
-    })
+    setPusherClient(pusher);
 
     return () => {
-      pusher.unsubscribe(`presence-user-${session.user.email}`)
+      pusher.disconnect();
+    };
+  }, [session]);
+
+  const fetchMessages = useCallback(async () => {
+    if (!currentChat) return;
+    const response = await fetch(
+      `/api/messages?${currentChat.type}Id=${currentChat.id}`
+    );
+    if (response.ok) {
+      const data = await response.json();
+      setMessages(data.messages);
     }
-  }, [session])
+  }, [currentChat]);
+
+  useEffect(() => {
+    fetchMessages();
+  }, [fetchMessages]);
+
+  // happens if we switch chats, session changes,
+  useEffect(() => {
+    if (!pusherClient || !currentChat || !session?.user?.id) return;
+
+    const channelName =
+      currentChat.type === "user"
+        ? `presence-user-${session.user.id}`
+        : `presence-group-${currentChat.id}`;
+
+    const channel = pusherClient.subscribe(channelName);
+
+    // connect to your own channel
+    channel.bind("pusher:subscription_succeeded", () => {
+      console.log("Successfully subscribed to channel:", channelName);
+
+      console.log(
+        "Connecting user: ",
+        session?.user?.id,
+        " to channel: ",
+        channelName
+      );
+    });
+
+    channel.bind("pusher:subscription_error", (error: any) => {
+      console.error("Error subscribing to channel:", channelName, error);
+    });
+
+    channel.bind("new-message", (data: Message) => {
+      console.log("new message in client: ", channelName);
+      setMessages((prevMessages) => [...prevMessages, data]);
+    });
+
+    return () => {
+      pusherClient.unsubscribe(channelName);
+    };
+  }, [pusherClient, currentChat, session]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setInput(e.target.value);
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    setIsTyping(true)
+    e.preventDefault();
+    if (!session?.user.id || !currentChat) return;
 
     const response = await fetch("/api/send-message", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ message: input, receiverId: currentChat?.id, groupChatId: currentChat?.groupId }),
-    })
+      body: JSON.stringify({
+        message: input,
+        [currentChat.type === "user" ? "receiverId" : "groupChatId"]:
+          currentChat.id,
+      }),
+    });
 
-    if (response.ok) {
-      setInput("")
-      setMessages((prevMessages) => [...prevMessages, { message: input, sender: session?.user?.email }])
+    const { success, message } = await response.json();
+
+    if (!success) {
+      return;
+      // setMessageError(true);
     }
-
-    setIsTyping(false)
-  }
+    setMessages([...messages, message]);
+    setInput("");
+  };
 
   return (
-    <Card className="w-full max-w-4xl">
+    <Card className="w-full ">
       <CardHeader>
         <CardTitle>Chat Platform</CardTitle>
       </CardHeader>
       <CardContent>
-        <Tabs defaultValue="private">
-          <TabsList>
-            <TabsTrigger value="private">Private Chats</TabsTrigger>
-            <TabsTrigger value="group">Group Chats</TabsTrigger>
-          </TabsList>
-          <TabsContent value="private">
-            <div className="flex">
-              <UserList onSelectUser={setCurrentChat} />
-              <div className="flex-1 ml-4">
-                <div className="h-[50vh] overflow-y-auto border p-4 mb-4">
-                  {messages.map((m, index) => (
-                    <div
-                      key={index}
-                      className={`mb-2 ${m.sender === session?.user?.email ? "text-right" : "text-left"}`}
-                    >
-                      <span
-                        className={`inline-block p-2 rounded-lg ${m.sender === session?.user?.email ? "bg-blue-500 text-white" : "bg-gray-200 text-black"}`}
-                      >
-                        {m.message}
-                      </span>
+        <div className="flex">
+          <UserList
+            onSelectUser={(user) =>
+              setCurrentChat({ id: user.id, type: "user" })
+            }
+          />
+          <div className="flex flex-col w-full">
+            <ActiveUser userId={currentChat!.id}></ActiveUser>
+            <div className="flex-1 ml-4">
+              <div
+                className="h-[50vh] overflow-y-auto border p-4 mb-4"
+                ref={(el) => {
+                  if (el) el.scrollTop = el.scrollHeight;
+                }}>
+                {messages.map((m) => (
+                  <div
+                    key={m.id}
+                    className={`mb-2 ${
+                      m.sender.email === session?.user?.email
+                        ? "text-right"
+                        : "text-left"
+                    }`}>
+                    <span
+                      className={`inline-block p-2 rounded-lg ${
+                        m.sender.email === session?.user?.email
+                          ? "bg-blue-500 text-white"
+                          : "bg-gray-200 text-black"
+                      }`}>
+                      {m.content}
+                    </span>
+                    <div className="text-xs text-gray-500 mt-1">
+                      {new Date(m.createdAt).toLocaleString()}
                     </div>
-                  ))}
-                </div>
-                <form onSubmit={handleSubmit} className="flex space-x-2">
-                  <Input
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    placeholder="Type your message..."
-                    className="flex-grow"
-                  />
-                  <Button type="submit" disabled={isTyping || !currentChat}>
-                    Send
-                  </Button>
-                </form>
+                  </div>
+                ))}
               </div>
+              <form
+                onSubmit={handleSubmit}
+                className="flex space-x-2">
+                <Input
+                  value={input}
+                  onChange={handleInputChange}
+                  placeholder="Type your message..."
+                  className="flex-grow"
+                />
+                <Button
+                  type="submit"
+                  disabled={!currentChat}>
+                  Send
+                </Button>
+              </form>
             </div>
-          </TabsContent>
-          <TabsContent value="group">
-            <div className="flex">
-              <GroupList onSelectGroup={setCurrentChat} />
-              <div className="flex-1 ml-4">
-                <div className="h-[50vh] overflow-y-auto border p-4 mb-4">
-                  {messages.map((m, index) => (
-                    <div
-                      key={index}
-                      className={`mb-2 ${m.sender === session?.user?.email ? "text-right" : "text-left"}`}
-                    >
-                      <span
-                        className={`inline-block p-2 rounded-lg ${m.sender === session?.user?.email ? "bg-blue-500 text-white" : "bg-gray-200 text-black"}`}
-                      >
-                        {m.message}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                <form onSubmit={handleSubmit} className="flex space-x-2">
-                  <Input
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    placeholder="Type your message..."
-                    className="flex-grow"
-                  />
-                  <Button type="submit" disabled={isTyping || !currentChat}>
-                    Send
-                  </Button>
-                </form>
-              </div>
-            </div>
-          </TabsContent>
-        </Tabs>
+          </div>
+        </div>
       </CardContent>
     </Card>
-  )
+  );
 }
-
