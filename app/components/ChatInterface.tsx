@@ -123,20 +123,20 @@ export default function ChatInterface() {
   };
 
   return (
-    <Card className="w-full ">
+    <Card className="w-full md:max-w-full">
       <CardHeader>
         <CardTitle>Chat Platform</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="flex">
+        <div className="flex flex-col md:flex-row">
           <UserList
             onSelectUser={(user: User) =>
               setCurrentChat({ id: user.id, type: "user" })
             }
           />
-          <div className="flex flex-col w-full">
+          <div className="flex flex-col w-full md:w-3/4 mt-4 md:mt-0">
             {currentChat && <ActiveUser userId={currentChat.id}></ActiveUser>}
-            <div className="flex-1 ml-4">
+            <div className="flex-1 ml-0 md:ml-4">
               <div
                 className="h-[50vh] overflow-y-auto border p-4 mb-4"
                 ref={(el) => {

@@ -16,9 +16,8 @@ export default function UserList({ onSelectUser }) {
       .then((data) => setUsers(data))
       .then(() => setLoadingUsers(false));
   }, []);
-
   return (
-    <div className="w-1/3 border-r pr-4">
+    <div className="border-r pr-4 md:w-1/4 w-full">
       <h3 className="font-bold mb-2">Users</h3>
       {loadingUsers ? (
         <Loader className="animate-spin" />
