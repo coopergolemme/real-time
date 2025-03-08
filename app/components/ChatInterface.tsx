@@ -36,7 +36,7 @@ export default function ChatInterface() {
   useEffect(() => {
     if (!session?.user?.email) return;
 
-    const pusher = new Pusher(process.env.PUSHER_KEY!, {
+    const pusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY!, {
       cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
       authEndpoint: "/api/pusher/auth",
     });
