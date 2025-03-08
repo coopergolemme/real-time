@@ -84,7 +84,6 @@ export default function ChatInterface() {
     });
 
     channel.bind("new-message", (data: Message) => {
-      console.log("new message in client: ", channelName);
       setMessages((prevMessages) => [...prevMessages, data]);
     });
 
