@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import UserList from "./UserList";
 import ActiveUser from "./ActiveUser";
+import { User } from "@prisma/client";
 
 interface Message {
   id: string;
@@ -30,7 +31,6 @@ export default function ChatInterface() {
     type: "user" | "group";
   } | null>(null);
   const [pusherClient, setPusherClient] = useState<Pusher | null>(null);
-  // const [messageError, setMessageError] = useState(false);
 
   // Happens whenever the session changes
   useEffect(() => {
@@ -65,7 +65,7 @@ export default function ChatInterface() {
 
   // happens if we switch chats, session changes,
   useEffect(() => {
-    if (!pusherClient || !currentChat || !session?.user?.id) return;
+    if (!pusherClient || !currentChat || !session?.user?.email) return;
 
     const channelName =
       currentChat.type === "user"
@@ -77,16 +77,9 @@ export default function ChatInterface() {
     // connect to your own channel
     channel.bind("pusher:subscription_succeeded", () => {
       console.log("Successfully subscribed to channel:", channelName);
-
-      console.log(
-        "Connecting user: ",
-        session?.user?.id,
-        " to channel: ",
-        channelName
-      );
     });
 
-    channel.bind("pusher:subscription_error", (error: any) => {
+    channel.bind("pusher:subscription_error", (error: Error) => {
       console.error("Error subscribing to channel:", channelName, error);
     });
 
@@ -124,7 +117,6 @@ export default function ChatInterface() {
 
     if (!success) {
       return;
-      // setMessageError(true);
     }
     setMessages([...messages, message]);
     setInput("");
@@ -138,12 +130,12 @@ export default function ChatInterface() {
       <CardContent>
         <div className="flex">
           <UserList
-            onSelectUser={(user) =>
+            onSelectUser={(user: User) =>
               setCurrentChat({ id: user.id, type: "user" })
             }
           />
           <div className="flex flex-col w-full">
-            <ActiveUser userId={currentChat!.id}></ActiveUser>
+            {currentChat && <ActiveUser userId={currentChat.id}></ActiveUser>}
             <div className="flex-1 ml-4">
               <div
                 className="h-[50vh] overflow-y-auto border p-4 mb-4"
